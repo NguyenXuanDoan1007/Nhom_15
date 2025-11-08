@@ -9,14 +9,21 @@ PORT = 8888         # Cổng kết nối
 BUFFER_SIZE = 1024
 
 # Dữ liệu vé (True = Ghế trống, False = Đã đặt)
+# Sử dụng tên phim không dấu và khớp với dữ liệu bạn cung cấp.
 BOOKING_DATA = {
-    "Avengers: Endgame": {
-        "10:00": [True, True, True, True, False], # Ghế 5 đã đặt
+    "Bo Tu Bao Thu": {
+        "10:00": [True, True, True, True, True], # Ghế 5 đã đặt
         "14:00": [True, True, True, True, True] 
     },
-    "Spider-Man: No Way Home": {
+    
+    "Cuc Vang Cua Ngoai": {
+        "18:30": [True, True, True, True, True],
+        "20:30": [True, True, True, True, True]
+    },
+    
+    "Spider-Man": {
         "18:00": [True, True, True, True, True],
-        "21:00": [False, True, True, True, True] # Ghế 1 đã đặt
+        "21:00": [True, True, True, True, True] # Ghế 1 đã đặt
     }
 }
 
@@ -52,7 +59,8 @@ def handle_client(client_socket):
 
 def process_request(request):
     """Phân tích yêu cầu và trả về phản hồi."""
-    parts = request.split(':')
+    # Sửa lỗi: Dùng | làm ký tự phân tách lệnh
+    parts = request.split('|') 
     command = parts[0]
     
     if command == "GET_MOVIES":
@@ -64,7 +72,7 @@ def process_request(request):
         return json.dumps(movies_info)
 
     elif command == "GET_SEATS" and len(parts) == 3:
-        # Cú pháp: GET_SEATS:Tên Phim:Suất Chiếu
+        # Cú pháp: GET_SEATS|Tên Phim|Suất Chiếu
         movie_title = parts[1]
         showtime = parts[2]
         
@@ -75,28 +83,48 @@ def process_request(request):
         else:
             return "ERROR: Phim hoặc suất chiếu không hợp lệ."
 
+    # LOGIC ĐẶT NHIỀU GHẾ ĐÃ ĐƯỢC CẬP NHẬT
     elif command == "BOOK_SEAT" and len(parts) == 4:
-        # Cú pháp: BOOK_SEAT:Tên Phim:Suất Chiếu:Số Ghế (Index từ 1)
+        # Cú pháp: BOOK_SEAT|Tên Phim|Suất Chiếu|Số Ghế 1,2,3...
         movie_title = parts[1]
         showtime = parts[2]
-        try:
-            seat_index = int(parts[3]) - 1 # Chuyển từ số ghế (1, 2, 3...) sang index (0, 1, 2...)
-        except ValueError:
-            return "ERROR: Số ghế không hợp lệ."
+        seats_to_book_str = parts[3] # Chuỗi số ghế: "1,2,5"
 
+        # Chia chuỗi số ghế thành danh sách các số ghế hợp lệ
+        seat_numbers = [s.strip() for s in seats_to_book_str.split(',') if s.strip().isdigit()]
+
+        if not seat_numbers:
+            return "ERROR: Không tìm thấy số ghế hợp lệ nào để đặt."
+
+        # Danh sách kết quả để trả về Client
+        booking_results = []
+        
         if movie_title in BOOKING_DATA and showtime in BOOKING_DATA[movie_title]:
-            seats = BOOKING_DATA[movie_title][showtime]
+            available_seats = BOOKING_DATA[movie_title][showtime]
             
-            if 0 <= seat_index < len(seats):
-                if seats[seat_index] is True:
-                    # Cập nhật trạng thái đặt vé
-                    BOOKING_DATA[movie_title][showtime][seat_index] = False
-                    print(f"[BOOKING] Đã đặt thành công: {movie_title} - {showtime} - Ghế {seat_index + 1}")
-                    return f"SUCCESS: Đã đặt thành công ghế {seat_index + 1} cho phim {movie_title}."
+            for seat_num_str in seat_numbers:
+                try:
+                    # Chuyển từ số ghế (1, 2, 3...) sang index (0, 1, 2...)
+                    seat_index = int(seat_num_str) - 1 
+                except ValueError:
+                    booking_results.append(f"Ghế {seat_num_str} (Lỗi định dạng)")
+                    continue
+
+                if 0 <= seat_index < len(available_seats):
+                    if available_seats[seat_index] is True:
+                        # Đặt ghế và cập nhật trạng thái
+                        BOOKING_DATA[movie_title][showtime][seat_index] = False
+                        booking_results.append(f"Ghế {seat_num_str} (THÀNH CÔNG)")
+                    else:
+                        booking_results.append(f"Ghế {seat_num_str} (ĐÃ ĐẶT)")
                 else:
-                    return f"ERROR: Ghế {seat_index + 1} đã có người đặt."
-            else:
-                return "ERROR: Số ghế nằm ngoài phạm vi."
+                    booking_results.append(f"Ghế {seat_num_str} (Ngoại phạm vi)")
+            
+            # Ghi log và trả về kết quả
+            log_message = f"[BOOKING] Kết quả đặt vé cho {movie_title} - {showtime}: {', '.join(booking_results)}"
+            print(log_message)
+            return f"SUCCESS: Kết quả đặt vé: {', '.join(booking_results)}"
+
         else:
             return "ERROR: Phim hoặc suất chiếu không hợp lệ."
             

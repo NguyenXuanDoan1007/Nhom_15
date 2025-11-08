@@ -52,11 +52,11 @@ def start_client():
                     
                     # BƯỚC 2: Người dùng chọn phim và suất
                     movie_choice = input("Nhập tên phim muốn xem: ").strip()
-                    time_choice = input("Nhập suất chiếu (ví dụ: 10:00): ").strip()
+                    time_choice = input("Nhập suất chiếu: ").strip()
                     
                     if movie_choice and time_choice:
                         # BƯỚC 3: Yêu cầu trạng thái ghế
-                        request = f"GET_SEATS:{movie_choice}:{time_choice}"
+                        request = f"GET_SEATS|{movie_choice}|{time_choice}"
                         client.sendall(request.encode('utf-8'))
                         
                         seat_response = client.recv(BUFFER_SIZE).decode('utf-8')
@@ -70,9 +70,9 @@ def start_client():
                         display_seat_status(seat_data['seats'])
                         
                         # BƯỚC 4: Người dùng chọn ghế
-                        seat_number = input("Nhập số ghế bạn muốn đặt (1, 2, 3...): ").strip()
-                        if seat_number.isdigit():
-                            request = f"BOOK_SEAT:{movie_choice}:{time_choice}:{seat_number}"
+                        seat_number_input = input("Nhập số ghế bạn muốn đặt (1,2,3): ").strip()
+                        if seat_number_input:
+                            request = f"BOOK_SEAT|{movie_choice}|{time_choice}|{seat_number_input}"
                         else:
                             print("[LỖI] Lựa chọn ghế không hợp lệ.")
                             continue
